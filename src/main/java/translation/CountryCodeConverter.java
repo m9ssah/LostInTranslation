@@ -13,6 +13,7 @@ public class CountryCodeConverter {
 
     private Map<String, String> countryCodeToCountry = new HashMap<>();
     private Map<String, String> countryToCountryCode = new HashMap<>();
+    private Set<String> canonicalCodes = new HashSet<>(); // for counting
 
     /**
      * Default constructor that loads the country codes from "country-codes.txt"
@@ -28,41 +29,55 @@ public class CountryCodeConverter {
      * @throws RuntimeException if the resources file can't be loaded properly
      */
     public CountryCodeConverter(String filename) {
-
         try {
-            List<String> lines = Files.readAllLines(Paths.get(getClass()
-                    .getClassLoader().getResource(filename).toURI()));
+            List<String> lines = Files.readAllLines(Paths.get(
+                    getClass().getClassLoader().getResource(filename).toURI()));
 
             Iterator<String> iterator = lines.iterator();
-            iterator.next(); // skip the first line
+            iterator.next(); // skip header line
             while (iterator.hasNext()) {
-                String line = iterator.next();
+                String line = iterator.next().trim();
+                if (line.isEmpty()) continue;
                 String[] parts = line.split("\t");
-                countryCodeToCountry.put(parts[2].toLowerCase(), parts[0]);
-                countryToCountryCode.put(parts[0], parts[2].toLowerCase());
+                if (parts.length >= 2) {
+                    String country = parts[0].trim();
+                    String code = parts[1].trim().toLowerCase();
+
+                    // store canonical
+                    countryCodeToCountry.put(code, country);
+                    countryToCountryCode.put(country, code);
+                    canonicalCodes.add(code);
+
+                    // add alias without counting it
+                    if (code.equals("us")) {
+                        countryCodeToCountry.put("usa", country);
+                        countryToCountryCode.put(country, "usa");
+                    }
+                }
             }
         }
         catch (IOException | URISyntaxException ex) {
             throw new RuntimeException(ex);
         }
-
     }
 
     /**
      * Return the name of the country for the given country code.
-     * @param code the 3-letter code of the country
+     * @param code the 2- or 3-letter code of the country
      * @return the name of the country corresponding to the code
      */
     public String fromCountryCode(String code) {
-        return countryCodeToCountry.get(code);
+        if (code == null) return null;
+        return countryCodeToCountry.get(code.toLowerCase());
     }
 
     /**
      * Return the code of the country for the given country name.
      * @param country the name of the country
-     * @return the 3-letter code of the country
+     * @return the 2- or 3-letter code of the country
      */
     public String fromCountry(String country) {
+        if (country == null) return null;
         return countryToCountryCode.get(country);
     }
 
@@ -71,6 +86,6 @@ public class CountryCodeConverter {
      * @return how many countries are included in this country code converter.
      */
     public int getNumCountries() {
-        return countryToCountryCode.size();
+        return canonicalCodes.size();
     }
 }
